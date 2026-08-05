@@ -1,0 +1,27 @@
+{
+  "name": "@receivingX/api",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@receivingX/auth": "workspace:*",
+    "@receivingX/db": "workspace:*",
+    "@receivingX/env": "workspace:*",
+    "@trpc/client": "catalog:",
+    "@trpc/server": "catalog:",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@receivingX/config": "workspace:*",
+    "hono": "catalog:",
+    "typescript": "^6.0.3"
+  }
+}

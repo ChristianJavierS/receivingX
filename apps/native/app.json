@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "scheme": "receivingX",
+    "userInterfaceStyle": "automatic",
+    "orientation": "default",
+    "web": {
+      "bundler": "metro"
+    },
+    "name": "receivingX",
+    "slug": "receivingX",
+    "plugins": ["expo-font"],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

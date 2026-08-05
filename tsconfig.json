@@ -1,0 +1,3 @@
+{
+  "extends": "@receivingX/config/tsconfig.base.json"
+}

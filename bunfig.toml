@@ -1,0 +1,4 @@
+[install]
+no-verify = true
+network-concurrency = 8
+backend = "copyfile"
