@@ -103,9 +103,27 @@ Implemented:
   `db:promote-admin` (grant the admin role to a signed-up user).
 
 Verified: `bun run check-types` and `bun run build` pass for all packages/apps.
-Not verified in this environment: `docker compose up` / `db:push` against a live
-Postgres (Docker wasn't available here) - run these in the real deployment target
-before first use.
+
+**Deployed**: running on the home-lab server (192.168.1.224, `~/docker/receivingx`)
+via `docker compose`, reachable at `https://receiving.lan` (web) and
+`https://receiving-api.lan` (API), proxied through the existing Caddy instance
+(`~/reverse-proxy/Caddyfile`). Direct IP:port access also works:
+`http://192.168.1.224:3001` (web) / `:3900` (server) - see root `.env` on the
+server for the port/URL overrides used. Schema pushed and demo data seeded.
+`.lan` hostnames only resolve for devices pointed at the home-lab DNS
+(192.168.1.224) with its root CA trusted - see that server's
+`~/PROJECT-README.md` for client setup, otherwise use the IP:port form.
+
+Two real Docker-build bugs were found and fixed during this deploy: bun
+doesn't run Prisma's postinstall (`prisma generate` must be invoked
+explicitly - see the Dockerfiles), and Turborepo's strict env mode strips
+`DATABASE_URL` from child tasks unless passed through, so that generate step
+calls `prisma` directly rather than via `turbo`/`bun run db:generate`.
+
+To create the first admin: sign up a normal account at
+`https://receiving.lan/login`, then from the server run
+`docker compose exec server sh -c "cd /app/packages/db && bun run prisma/promote-admin.ts you@example.com"`
+(the running container already has `DATABASE_URL` set).
 
 Not yet built (see "Open items" above for blockers): background job queue for
 OCR (currently synchronous per-photo), a jobs/queue package, automated tests,
