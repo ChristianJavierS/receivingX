@@ -128,9 +128,19 @@ explicitly - see the Dockerfiles), and Turborepo's strict env mode strips
 calls `prisma` directly rather than via `turbo`/`bun run db:generate`.
 
 To create the first admin: sign up a normal account at
-`https://receiving.lan/login`, then from the server run
+`http://192.168.1.224:3001/login`, then from the server run
 `docker compose exec server sh -c "cd /app/packages/db && bun run prisma/promote-admin.ts you@example.com"`
 (the running container already has `DATABASE_URL` set).
+
+**Fixed post-deploy**: package photo upload/download used presigned S3 URLs
+signed against the internal Docker hostname (`minio:9000`), which browsers
+can't resolve - manifested as a silent "Load fail" on photo upload. Fixed by
+adding `S3_PUBLIC_ENDPOINT` (`packages/storage`, `packages/env`) used only for
+*signing* URLs, republishing the MinIO API port (`MINIO_API_PORT`, default
+9000, set to 9002 on this server since 9000 was already taken), and setting
+`S3_PUBLIC_ENDPOINT=http://192.168.1.224:9002` in `apps/server/.env`. Verified
+end-to-end (sign up, start session, create package, request upload URL, PUT
+bytes to MinIO - all 200).
 
 Not yet built (see "Open items" above for blockers): background job queue for
 OCR (currently synchronous per-photo), a jobs/queue package, automated tests,
