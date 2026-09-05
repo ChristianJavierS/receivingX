@@ -7,6 +7,9 @@ ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
 
 COPY . .
 RUN --mount=type=cache,target=/root/.bun/install/cache bun install
+# bun doesn't run prisma's postinstall script, so the generated client
+# (gitignored, package.json "exports" points at it) never exists otherwise.
+RUN bun run db:generate
 
 ENV NODE_ENV=production
 RUN cd apps/server && bun run build
