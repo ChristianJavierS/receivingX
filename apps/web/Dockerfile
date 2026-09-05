@@ -11,7 +11,7 @@ RUN --mount=type=cache,target=/root/.bun/install/cache bun install
 # (gitignored, package.json "exports" points at it) never exists otherwise.
 # Invoked directly (not via `turbo run`/`bun run db:generate`) because turbo's
 # strict env mode strips DATABASE_URL from the child process by default.
-RUN cd packages/db && bunx prisma generate
+RUN cd packages/db && bun x prisma generate
 
 ARG NEXT_PUBLIC_SERVER_URL
 ENV NEXT_PUBLIC_SERVER_URL=${NEXT_PUBLIC_SERVER_URL}
