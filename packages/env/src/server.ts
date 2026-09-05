@@ -19,6 +19,11 @@ export const env = createEnv({
     S3_SECRET_KEY: z.string().min(1).default("minioadmin"),
     S3_FORCE_PATH_STYLE: z.coerce.boolean().default(true),
     S3_PUBLIC_URL: z.string().min(1).optional(),
+    // Endpoint used only to *sign* presigned upload/download URLs handed to
+    // the browser (e.g. http://192.168.1.224:9002). Falls back to S3_ENDPOINT
+    // when unset, which is correct for local dev (same host) but wrong for
+    // most Docker deploys where S3_ENDPOINT is an internal service name.
+    S3_PUBLIC_ENDPOINT: z.string().min(1).optional(),
 
     // OCR sidecar
     OCR_URL: z.string().min(1).default("http://localhost:8100"),

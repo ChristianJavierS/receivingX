@@ -7,7 +7,9 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "@receivingX/env/server";
 
 let client: S3Client | null = null;
+let publicClient: S3Client | null = null;
 
+/** Internal client - used for server-to-server object reads/writes (OCR, email attachments). */
 export function getS3Client(): S3Client {
   if (!client) {
     client = new S3Client({
@@ -21,6 +23,29 @@ export function getS3Client(): S3Client {
     });
   }
   return client;
+}
+
+/**
+ * Client used only to *sign* URLs handed to the browser. SigV4 signatures
+ * cover the host, so presigned URLs must be generated against an endpoint
+ * the browser can actually resolve/reach - which in Docker is usually not
+ * the same as the internal service name (e.g. `minio:9000`). Falls back to
+ * S3_ENDPOINT if no public endpoint is configured (e.g. plain local dev).
+ */
+export function getPublicS3Client(): S3Client {
+  if (!env.S3_PUBLIC_ENDPOINT) return getS3Client();
+  if (!publicClient) {
+    publicClient = new S3Client({
+      endpoint: env.S3_PUBLIC_ENDPOINT,
+      region: env.S3_REGION,
+      forcePathStyle: env.S3_FORCE_PATH_STYLE,
+      credentials: {
+        accessKeyId: env.S3_ACCESS_KEY,
+        secretAccessKey: env.S3_SECRET_KEY,
+      },
+    });
+  }
+  return publicClient;
 }
 
 export const BUCKET = env.S3_BUCKET;
@@ -41,13 +66,13 @@ export async function createUploadUrl(key: string, contentType: string, expiresI
     Key: key,
     ContentType: contentType,
   });
-  return getSignedUrl(getS3Client(), command, { expiresIn: expiresInSeconds });
+  return getSignedUrl(getPublicS3Client(), command, { expiresIn: expiresInSeconds });
 }
 
 /** A short-lived URL the browser (or email client) can GET the object from. */
 export async function createDownloadUrl(key: string, expiresInSeconds = 3600): Promise<string> {
   const command = new GetObjectCommand({ Bucket: BUCKET, Key: key });
-  return getSignedUrl(getS3Client(), command, { expiresIn: expiresInSeconds });
+  return getSignedUrl(getPublicS3Client(), command, { expiresIn: expiresInSeconds });
 }
 
 export async function getObjectBuffer(key: string): Promise<Buffer> {

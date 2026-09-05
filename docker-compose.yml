@@ -28,10 +28,12 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
-    # The S3 API port (9000) is internal-only (minio:9000) - only `server`
-    # calls it. The console (9001) is published so an admin can browse the
-    # bucket; override MINIO_CONSOLE_PORT if 9001 is taken on the host.
+    # The S3 API port must be reachable by the *browser* (not just `server`)
+    # because package-photo uploads/downloads use presigned URLs the client
+    # PUTs/GETs directly. Set S3_PUBLIC_ENDPOINT (apps/server/.env) to the
+    # URL this maps to on your host if it's not http://localhost:${MINIO_API_PORT}.
     ports:
+      - "${MINIO_API_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio-data:/data
