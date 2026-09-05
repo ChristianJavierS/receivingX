@@ -29,6 +29,7 @@ function ReviewContent() {
   const [carrier, setCarrier] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [shipFrom, setShipFrom] = useState("");
+  const [shipToName, setShipToName] = useState("");
   const [notes, setNotes] = useState("");
   const [uploading, setUploading] = useState(false);
 
@@ -38,8 +39,41 @@ function ReviewContent() {
     if (pkg?.trackingNumber) setTrackingNumber(pkg.trackingNumber);
     if (pkg?.carrier) setCarrier(pkg.carrier);
     if (pkg?.shipFrom) setShipFrom(pkg.shipFrom);
+    if (pkg?.shipToName) setShipToName(pkg.shipToName);
     if (pkg?.notes) setNotes(pkg.notes);
   }, [pkg?.id]);
+
+  /** Clicking an OCR candidate chip quick-fills the matching field below. */
+  function applyCandidate(key: string, value: string) {
+    switch (key) {
+      case "TRACKING":
+        setTrackingNumber(value);
+        break;
+      case "SHIP_FROM":
+        setShipFrom(value);
+        break;
+      case "CUSTOMER_NAME":
+        setShipToName(value);
+        break;
+      case "QTY": {
+        const n = Number.parseInt(value, 10);
+        if (!Number.isNaN(n)) setQtyReceived(n);
+        break;
+      }
+      case "SN":
+        setSerials((prev) => (prev ? `${prev}\n${value}` : value));
+        break;
+      case "VENDOR":
+      case "DESCRIPTION":
+      case "PO":
+      case "PN":
+      case "SO":
+        setSearch(value);
+        break;
+      default:
+        break;
+    }
+  }
 
   const suggestions = useQuery({
     ...trpc.receiving.package.suggestMatches.queryOptions({ packageId, search: search || undefined }),
@@ -161,16 +195,19 @@ function ReviewContent() {
       {Object.keys(fieldsByKey).length > 0 && (
         <section className="mt-6 border border-border p-3 text-xs">
           <h2 className="text-sm font-semibold">OCR candidates</h2>
+          <p className="mt-1 text-muted-foreground">Tap a candidate to fill it into the matching field below.</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {Object.entries(fieldsByKey).map(([key, values]) =>
               values.map((v) => (
-                <span
+                <button
                   key={`${key}-${v.value}`}
-                  className="font-data rounded-full border border-border bg-muted px-2 py-1"
+                  type="button"
+                  onClick={() => applyCandidate(key, v.value)}
+                  className="font-data rounded-full border border-border bg-muted px-2 py-1 hover:bg-cyan-100"
                   title={`confidence ${(v.confidence ?? 0).toFixed(2)}`}
                 >
                   {key}: {v.value}
-                </span>
+                </button>
               )),
             )}
           </div>
@@ -234,8 +271,12 @@ function ReviewContent() {
           <Input id="tracking" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)} />
         </div>
         <div>
-          <Label htmlFor="shipFrom">Ship from</Label>
+          <Label htmlFor="shipFrom">Ship from (where it came from)</Label>
           <Input id="shipFrom" value={shipFrom} onChange={(e) => setShipFrom(e.target.value)} />
+        </div>
+        <div>
+          <Label htmlFor="shipToName">Ship to / for whom</Label>
+          <Input id="shipToName" value={shipToName} onChange={(e) => setShipToName(e.target.value)} />
         </div>
         <div className="col-span-2">
           <Label htmlFor="serials">Serial numbers (one per line)</Label>
@@ -263,6 +304,7 @@ function ReviewContent() {
             carrier: carrier || undefined,
             trackingNumber: trackingNumber || undefined,
             shipFrom: shipFrom || undefined,
+            shipToName: shipToName || undefined,
             notes: notes || undefined,
           })
         }

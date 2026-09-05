@@ -47,37 +47,56 @@ function SessionDetailContent() {
         </div>
       </div>
 
-      <div className="mt-6 border border-border">
+      <div className="mt-6 overflow-x-auto border border-border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Package</TableHead>
               <TableHead>Customer</TableHead>
+              <TableHead>Order date</TableHead>
+              <TableHead>Vendor</TableHead>
               <TableHead>PO</TableHead>
               <TableHead>Qty</TableHead>
-              <TableHead>Serials</TableHead>
+              <TableHead>PN</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead>SN</TableHead>
+              <TableHead>Ship to</TableHead>
+              <TableHead>Ship from</TableHead>
+              <TableHead>Received</TableHead>
+              <TableHead>ETA</TableHead>
               <TableHead>Status</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {session.data.packages.map((pkg) => (
-              <TableRow key={pkg.id}>
-                <TableCell className="font-data">{pkg.publicId}</TableCell>
-                <TableCell>{pkg.salesOrderLine?.salesOrder.customer.name ?? "-"}</TableCell>
-                <TableCell className="font-data">{pkg.salesOrderLine?.poNumber ?? "-"}</TableCell>
-                <TableCell>{pkg.qtyReceived}</TableCell>
-                <TableCell className="font-data">{pkg.serials.map((s) => s.serial).join(", ")}</TableCell>
-                <TableCell>
-                  <StatusBadge status={pkg.status} />
-                </TableCell>
-                <TableCell>
-                  <Button variant="ghost" size="sm" onClick={() => printLabel(pkg.id)}>
-                    Print label
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+            {session.data.packages.map((pkg) => {
+              const line = pkg.salesOrderLine;
+              return (
+                <TableRow key={pkg.id}>
+                  <TableCell className="font-data">{pkg.publicId}</TableCell>
+                  <TableCell>{line?.salesOrder.customer.name ?? "-"}</TableCell>
+                  <TableCell>{line ? new Date(line.salesOrder.orderDate).toLocaleDateString() : "-"}</TableCell>
+                  <TableCell>{line?.vendor?.name ?? "-"}</TableCell>
+                  <TableCell className="font-data">{line?.poNumber ?? "-"}</TableCell>
+                  <TableCell>{pkg.qtyReceived}</TableCell>
+                  <TableCell className="font-data">{line?.partNumber ?? "-"}</TableCell>
+                  <TableCell className="max-w-xs truncate">{line?.description ?? "-"}</TableCell>
+                  <TableCell className="font-data">{pkg.serials.map((s) => s.serial).join(", ") || "-"}</TableCell>
+                  <TableCell>{pkg.shipToName ?? "-"}</TableCell>
+                  <TableCell>{pkg.shipFrom ?? "-"}</TableCell>
+                  <TableCell>{new Date(pkg.receivedAt).toLocaleDateString()}</TableCell>
+                  <TableCell>{line?.eta ? new Date(line.eta).toLocaleDateString() : "-"}</TableCell>
+                  <TableCell>
+                    <StatusBadge status={pkg.status} />
+                  </TableCell>
+                  <TableCell>
+                    <Button variant="ghost" size="sm" onClick={() => printLabel(pkg.id)}>
+                      Print label
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>

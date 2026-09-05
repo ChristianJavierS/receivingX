@@ -57,7 +57,7 @@ export const receivingRouter = router({
               photos: true,
               extractedFields: true,
               serials: true,
-              salesOrderLine: { include: { salesOrder: { include: { customer: true } } } },
+              salesOrderLine: { include: { salesOrder: { include: { customer: true } }, vendor: true } },
             },
             orderBy: { createdAt: "asc" },
           },
@@ -358,10 +358,12 @@ async function runOcrForPhoto(db: typeof import("@receivingX/db").default, photo
       where: { status: { in: ["OPEN", "PARTIAL"] } },
       select: { poNumber: true, partNumber: true },
     });
+    const vendors = await db.vendor.findMany({ select: { name: true } });
 
     const candidates = extractFieldsFromText(result.rawText, {
       openPoNumbers: openLines.map((l) => l.poNumber),
       openPartNumbers: openLines.map((l) => l.partNumber),
+      vendorNames: vendors.map((v) => v.name),
     });
 
     await db.packagePhoto.update({

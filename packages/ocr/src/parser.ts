@@ -51,6 +51,12 @@ const RE_PN = /\bP\/?N\s*#?\s*[:#]?\s*([A-Z0-9][A-Z0-9#.-]{2,19})\b/gi;
 const RE_QTY = /\bQ(?:T)?Y\.?\s*[:#]?\s*(\d{1,4})\b/gi;
 // FedEx tracking numbers are 12, 15, or 20 digits.
 const RE_TRACKING = /\b(\d{20}|\d{15}|\d{12})\b/g;
+// "WHERE did it come from" (ReceivingX.md) - the label's From/Ship-From block.
+const RE_SHIP_FROM = /\b(?:SHIP(?:PED)?\s*FROM|FROM)\s*[:#]\s*([A-Za-z0-9][^\n]{2,60})/gi;
+// "FOR WHOM is it" - the label's To/Ship-To/Attn block.
+const RE_CUSTOMER_NAME = /\b(?:SHIP\s*TO|DELIVER\s*TO|ATTN|ATTENTION|CUSTOMER)\s*[:#]\s*([A-Za-z0-9][^\n]{2,60})/gi;
+const RE_VENDOR = /\b(?:VENDOR|SOLD\s*BY|SUPPLIER|MANUFACTURER)\s*[:#]\s*([A-Za-z0-9][^\n]{2,60})/gi;
+const RE_DESCRIPTION = /\b(?:DESC(?:RIPTION)?|ITEM)\s*[:#]\s*([A-Za-z0-9][^\n]{2,80})/gi;
 
 /**
  * Extract every candidate field from raw OCR text. `poCandidates` (open
@@ -59,7 +65,7 @@ const RE_TRACKING = /\b(\d{20}|\d{15}|\d{12})\b/g;
  */
 export function extractFieldsFromText(
   rawText: string,
-  context?: { openPoNumbers?: string[]; openPartNumbers?: string[] },
+  context?: { openPoNumbers?: string[]; openPartNumbers?: string[]; vendorNames?: string[] },
 ): FieldCandidate[] {
   const out: FieldCandidate[] = [];
   const text = rawText.replace(/\r/g, "");
@@ -70,6 +76,10 @@ export function extractFieldsFromText(
   pushAll(out, "PN", text, RE_PN, 0.6);
   pushAll(out, "QTY", text, RE_QTY, 0.55);
   pushAll(out, "TRACKING", text, RE_TRACKING, 0.5);
+  pushAll(out, "SHIP_FROM", text, RE_SHIP_FROM, 0.5);
+  pushAll(out, "CUSTOMER_NAME", text, RE_CUSTOMER_NAME, 0.5);
+  pushAll(out, "VENDOR", text, RE_VENDOR, 0.45);
+  pushAll(out, "DESCRIPTION", text, RE_DESCRIPTION, 0.4);
 
   // Boost confidence for numbers that match a known open PO/PN so the auto-match
   // step in the receiving flow has a strong signal.
@@ -91,6 +101,16 @@ export function extractFieldsFromText(
     const found = text.includes(po);
     if (found && !out.some((c) => c.key === "PO" && c.value === po)) {
       out.push({ key: "PO", value: po, confidence: 0.85 });
+    }
+  }
+
+  // A known vendor's name appearing anywhere on the label is a strong
+  // signal even without a "Vendor:" label nearby.
+  for (const vendor of context?.vendorNames ?? []) {
+    if (text.toUpperCase().includes(vendor.toUpperCase())) {
+      const existing = out.find((c) => c.key === "VENDOR" && c.value.toUpperCase() === vendor.toUpperCase());
+      if (existing) existing.confidence = Math.max(existing.confidence, 0.8);
+      else out.push({ key: "VENDOR", value: vendor, confidence: 0.75 });
     }
   }
 
