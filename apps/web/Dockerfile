@@ -9,7 +9,9 @@ COPY . .
 RUN --mount=type=cache,target=/root/.bun/install/cache bun install
 # bun doesn't run prisma's postinstall script, so the generated client
 # (gitignored, package.json "exports" points at it) never exists otherwise.
-RUN bun run db:generate
+# Invoked directly (not via `turbo run`/`bun run db:generate`) because turbo's
+# strict env mode strips DATABASE_URL from the child process by default.
+RUN cd packages/db && bunx prisma generate
 
 ARG NEXT_PUBLIC_SERVER_URL
 ENV NEXT_PUBLIC_SERVER_URL=${NEXT_PUBLIC_SERVER_URL}
