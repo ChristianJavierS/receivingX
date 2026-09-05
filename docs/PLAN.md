@@ -105,14 +105,21 @@ Implemented:
 Verified: `bun run check-types` and `bun run build` pass for all packages/apps.
 
 **Deployed**: running on the home-lab server (192.168.1.224, `~/docker/receivingx`)
-via `docker compose`, reachable at `https://receiving.lan` (web) and
-`https://receiving-api.lan` (API), proxied through the existing Caddy instance
-(`~/reverse-proxy/Caddyfile`). Direct IP:port access also works:
-`http://192.168.1.224:3001` (web) / `:3900` (server) - see root `.env` on the
-server for the port/URL overrides used. Schema pushed and demo data seeded.
-`.lan` hostnames only resolve for devices pointed at the home-lab DNS
-(192.168.1.224) with its root CA trusted - see that server's
-`~/PROJECT-README.md` for client setup, otherwise use the IP:port form.
+via `docker compose`, reachable at plain **`http://192.168.1.224:3001`** (web)
+and `:3900` (API) - see root `.env` on the server for the port/URL overrides
+used. Schema pushed and demo data seeded.
+
+This intentionally does *not* go through the home-lab's Caddy `.lan` HTTPS
+proxy: the proxy's cert is signed by a private root CA that isn't trusted by
+default, and browsers report the resulting TLS failure as an opaque "CORS
+request did not succeed" on cross-origin auth calls. Rather than require every
+user to import that root CA, the app runs over plain HTTP on the bare IP.
+Tradeoff: no TLS for this app. To switch to HTTPS later (via that Caddy/`.lan`
+setup or a real cert), set `WEB_PUBLIC_SERVER_URL`/`WEB_PUBLIC_ORIGIN` (root
+`.env`) and `BETTER_AUTH_URL`/`APP_URL` (`apps/server/.env`) to `https://...`
+URLs and rebuild `web`+`server` - the auth cookie config
+(`packages/auth/src/index.ts`) automatically switches to `Secure`+`SameSite=None`
+when `BETTER_AUTH_URL` starts with `https://`.
 
 Two real Docker-build bugs were found and fixed during this deploy: bun
 doesn't run Prisma's postinstall (`prisma generate` must be invoked
