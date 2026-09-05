@@ -8,6 +8,12 @@ import { ROLES } from "./roles";
 
 export function createAuth() {
   const prisma = createPrismaClient();
+  // SameSite=None cookies require Secure and only matter for genuinely
+  // cross-site setups (e.g. separate public domains for web vs API). Plain
+  // HTTP deploys (or same-site-but-different-port deploys, which is common
+  // when web/server share a bare IP) need Lax + non-Secure or browsers drop
+  // the cookie silently and auth breaks with no useful error.
+  const isHttps = env.BETTER_AUTH_URL.startsWith("https://");
 
   return betterAuth({
     database: prismaAdapter(prisma, {
@@ -22,8 +28,8 @@ export function createAuth() {
     baseURL: env.BETTER_AUTH_URL,
     advanced: {
       defaultCookieAttributes: {
-        sameSite: "none",
-        secure: true,
+        sameSite: isHttps ? "none" : "lax",
+        secure: isHttps,
         httpOnly: true,
       },
     },
