@@ -1,4 +1,5 @@
 import { auth } from "@receivingX/auth";
+import prisma from "@receivingX/db";
 import type { Context as HonoContext } from "hono";
 
 export type CreateContextOptions = {
@@ -12,6 +13,7 @@ export async function createContext({ context }: CreateContextOptions) {
   return {
     auth: null,
     session,
+    db: prisma,
   };
 }
 

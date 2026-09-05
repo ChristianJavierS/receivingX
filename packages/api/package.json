@@ -14,13 +14,21 @@
     "@receivingX/auth": "workspace:*",
     "@receivingX/db": "workspace:*",
     "@receivingX/env": "workspace:*",
+    "@receivingX/inventree": "workspace:*",
+    "@receivingX/mailer": "workspace:*",
+    "@receivingX/ocr": "workspace:*",
+    "@receivingX/storage": "workspace:*",
     "@trpc/client": "catalog:",
     "@trpc/server": "catalog:",
     "dotenv": "catalog:",
+    "pdf-lib": "^1.17.1",
+    "qrcode": "^1.5.4",
+    "xlsx": "^0.18.5",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@receivingX/config": "workspace:*",
+    "@types/qrcode": "^1.5.5",
     "hono": "catalog:",
     "typescript": "^6.0.3"
   }

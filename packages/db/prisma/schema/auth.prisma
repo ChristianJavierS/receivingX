@@ -9,6 +9,23 @@ model User {
   sessions      Session[]
   accounts      Account[]
 
+  // better-auth admin plugin
+  role       String?
+  banned     Boolean?  @default(false)
+  banReason  String?
+  banExpires DateTime?
+
+  // ReceivingX
+  locationId String?
+  active     Boolean  @default(true)
+  location   Location? @relation(fields: [locationId], references: [id])
+
+  salesOrders        SalesOrder[]        @relation("SalesRep")
+  receivingSessions  ReceivingSession[]
+  packagesReceived   Package[]           @relation("ReceivedBy")
+  auditLogs          AuditLog[]
+  importBatches      ImportBatch[]
+
   @@unique([email])
   @@map("user")
 }
@@ -23,6 +40,9 @@ model Session {
   userAgent String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // better-auth admin plugin
+  impersonatedBy String?
 
   @@unique([token])
   @@index([userId])

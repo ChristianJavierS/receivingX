@@ -1,0 +1,22 @@
+{
+  "name": "@receivingX/ocr",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@receivingX/env": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@receivingX/config": "workspace:*",
+    "@types/bun": "catalog:",
+    "typescript": "^6.0.3"
+  }
+}

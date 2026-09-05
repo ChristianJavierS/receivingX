@@ -1,8 +1,10 @@
-import { expo } from "@better-auth/expo";
 import { createPrismaClient } from "@receivingX/db";
 import { env } from "@receivingX/env/server";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
+import { admin as adminPlugin } from "better-auth/plugins";
+
+import { ROLES } from "./roles";
 
 export function createAuth() {
   const prisma = createPrismaClient();
@@ -12,7 +14,7 @@ export function createAuth() {
       provider: "postgresql",
     }),
 
-    trustedOrigins: [env.CORS_ORIGIN, "receivingX://", "exp://", "http://localhost:8081"],
+    trustedOrigins: [env.CORS_ORIGIN],
     emailAndPassword: {
       enabled: true,
     },
@@ -25,7 +27,26 @@ export function createAuth() {
         httpOnly: true,
       },
     },
-    plugins: [expo()],
+    user: {
+      additionalFields: {
+        locationId: {
+          type: "string",
+          required: false,
+          input: false,
+        },
+        active: {
+          type: "boolean",
+          defaultValue: true,
+          input: false,
+        },
+      },
+    },
+    plugins: [
+      adminPlugin({
+        defaultRole: ROLES.RECEIVER,
+        adminRoles: [ROLES.ADMIN],
+      }),
+    ],
   });
 }
 

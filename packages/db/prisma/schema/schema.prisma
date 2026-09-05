@@ -8,3 +8,359 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// ---------------------------------------------------------------------------
+// Locations
+// ---------------------------------------------------------------------------
+
+model Location {
+  id                String   @id @default(cuid())
+  name              String
+  code              String
+  address           String?
+  receivingEmail    String?
+  accountingEmails  String[] @default([])
+  isDefault         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  users             User[]
+  salesOrders       SalesOrder[]
+  receivingSessions ReceivingSession[]
+  packages          Package[]
+
+  @@unique([code])
+  @@map("location")
+}
+
+// ---------------------------------------------------------------------------
+// Customers / Vendors
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id            String   @id @default(cuid())
+  name          String
+  accountNumber String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  salesOrders SalesOrder[]
+
+  @@index([name])
+  @@map("customer")
+}
+
+model Vendor {
+  id           String   @id @default(cuid())
+  name         String
+  contactEmail String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  lines SalesOrderLine[]
+
+  @@unique([name])
+  @@map("vendor")
+}
+
+// ---------------------------------------------------------------------------
+// Sales orders
+// ---------------------------------------------------------------------------
+
+enum OrderStatus {
+  OPEN
+  PARTIAL
+  CLOSED
+  CANCELLED
+}
+
+enum LineStatus {
+  OPEN
+  PARTIAL
+  RECEIVED
+  CANCELLED
+}
+
+model SalesOrder {
+  id          String      @id @default(cuid())
+  soNumber    String
+  customerId  String
+  salesRepId  String?
+  orderDate   DateTime
+  status      OrderStatus @default(OPEN)
+  locationId  String
+  notes       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  salesRep User?    @relation("SalesRep", fields: [salesRepId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+  lines    SalesOrderLine[]
+
+  @@unique([soNumber])
+  @@index([customerId])
+  @@index([status])
+  @@map("sales_order")
+}
+
+model SalesOrderLine {
+  id           String     @id @default(cuid())
+  salesOrderId String
+  lineNo       Int        @default(1)
+  vendorId     String?
+  poNumber     String
+  qtyOrdered   Int        @default(1)
+  partNumber   String
+  description  String?
+  eta          DateTime?
+  qtyReceived  Int        @default(0)
+  status       LineStatus @default(OPEN)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  vendor     Vendor?    @relation(fields: [vendorId], references: [id])
+  packages   Package[]
+  serials    SerialNumber[]
+
+  @@index([poNumber])
+  @@index([partNumber])
+  @@index([salesOrderId])
+  @@map("sales_order_line")
+}
+
+// ---------------------------------------------------------------------------
+// Receiving
+// ---------------------------------------------------------------------------
+
+enum SessionStatus {
+  DRAFT
+  FINALIZING
+  SENT
+  FAILED
+}
+
+model ReceivingSession {
+  id         String        @id @default(cuid())
+  receiverId String
+  locationId String
+  startedAt  DateTime      @default(now())
+  finishedAt DateTime?
+  status     SessionStatus @default(DRAFT)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  receiver      User           @relation(fields: [receiverId], references: [id])
+  location      Location       @relation(fields: [locationId], references: [id])
+  packages      Package[]
+  notifications Notification[]
+
+  @@index([receiverId])
+  @@index([status])
+  @@map("receiving_session")
+}
+
+enum PackageStatus {
+  PENDING_OCR
+  NEEDS_REVIEW
+  MATCHED
+  UNMATCHED
+  CHECKED_IN
+  VOIDED
+}
+
+model Package {
+  id                    String        @id @default(cuid())
+  publicId              String
+  sessionId             String
+  locationId            String
+  receivedAt            DateTime      @default(now())
+  receivedById          String
+  status                PackageStatus @default(PENDING_OCR)
+  carrier               String?
+  trackingNumber        String?
+  shipFrom              String?
+  shipToName            String?
+  salesOrderLineId      String?
+  qtyReceived           Int           @default(1)
+  notes                 String?
+  inventreeStockItemId  String?
+  inventreeUrl          String?
+  labelPrintedAt        DateTime?
+  imported              Boolean       @default(false)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  session        ReceivingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  location       Location         @relation(fields: [locationId], references: [id])
+  receivedBy     User             @relation("ReceivedBy", fields: [receivedById], references: [id])
+  salesOrderLine SalesOrderLine?  @relation(fields: [salesOrderLineId], references: [id])
+  photos         PackagePhoto[]
+  extractedFields ExtractedField[]
+  serials        SerialNumber[]
+
+  @@unique([publicId])
+  @@index([sessionId])
+  @@index([salesOrderLineId])
+  @@index([status])
+  @@index([trackingNumber])
+  @@map("package")
+}
+
+enum PhotoKind {
+  LABEL
+  PACKING_SLIP
+  DAMAGE
+  OTHER
+}
+
+enum OcrStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+model PackagePhoto {
+  id            String    @id @default(cuid())
+  packageId     String
+  kind          PhotoKind @default(LABEL)
+  objectKey     String
+  mimeType      String
+  bytes         Int
+  width         Int?
+  height        Int?
+  sha256        String?
+  ocrStatus     OcrStatus @default(PENDING)
+  ocrRawText    String?
+  ocrBlocks     Json?
+  ocrConfidence Float?
+  createdAt     DateTime  @default(now())
+
+  package Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@index([packageId])
+  @@map("package_photo")
+}
+
+enum FieldKey {
+  PO
+  SO
+  SN
+  PN
+  QTY
+  VENDOR
+  CUSTOMER_NAME
+  DESCRIPTION
+  TRACKING
+  SHIP_FROM
+}
+
+enum FieldSource {
+  OCR
+  MANUAL
+}
+
+model ExtractedField {
+  id         String      @id @default(cuid())
+  packageId  String
+  key        FieldKey
+  value      String
+  confidence Float?
+  source     FieldSource @default(OCR)
+  accepted   Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+
+  package Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@index([packageId])
+  @@map("extracted_field")
+}
+
+model SerialNumber {
+  id               String   @id @default(cuid())
+  packageId        String
+  salesOrderLineId String?
+  serial           String
+  createdAt        DateTime @default(now())
+
+  package        Package         @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  salesOrderLine SalesOrderLine? @relation(fields: [salesOrderLineId], references: [id])
+
+  @@unique([packageId, serial])
+  @@index([salesOrderLineId])
+  @@map("serial_number")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+model Notification {
+  id             String             @id @default(cuid())
+  sessionId      String
+  toEmails       String[]
+  ccEmails       String[]           @default([])
+  subject        String
+  status         NotificationStatus @default(QUEUED)
+  graphMessageId String?
+  error          String?
+  sentAt         DateTime?
+  createdAt      DateTime           @default(now())
+
+  session ReceivingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("notification")
+}
+
+// ---------------------------------------------------------------------------
+// Audit / import / settings
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id       String   @id @default(cuid())
+  actorId  String?
+  entity   String
+  entityId String
+  action   String
+  before   Json?
+  after    Json?
+  at       DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([entity, entityId])
+  @@map("audit_log")
+}
+
+model ImportBatch {
+  id             String   @id @default(cuid())
+  filename       String
+  importedById   String
+  rowCount       Int      @default(0)
+  okCount        Int      @default(0)
+  errorCount     Int      @default(0)
+  report         Json?
+  createdAt      DateTime @default(now())
+
+  importedBy User @relation(fields: [importedById], references: [id])
+
+  @@map("import_batch")
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("setting")
+}

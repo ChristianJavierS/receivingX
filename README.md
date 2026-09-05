@@ -1,24 +1,27 @@
 # receivingX
 
-This is an inventory receiving software to keep track of everything that is being received.
+Self-hosted package receiving app: photograph a shipping label on your phone, OCR
+extracts the fields, match it to a sales order, check it in, and one summary email
+with photos goes out to receiving/accounting/the sales rep. See `docs/PLAN.md` and
+`docs/DESIGN.md` for the full spec and brand/design system.
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines Next.js, Hono, TRPC, and more.
+This project started from [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack).
 
 ## Features
 
 - **TypeScript** - For type safety and improved developer experience
-- **Next.js** - Full-stack React framework
-- **React Native** - Build mobile apps using React
-- **Expo** - Tools for React Native development
+- **Next.js (PWA)** - Full-stack React frontend, phone-first receiving flow
 - **TailwindCSS** - Utility-first CSS for rapid UI development
 - **Shared UI package** - shadcn/ui primitives live in `packages/ui`
 - **Hono** - Lightweight, performant server framework
 - **tRPC** - End-to-end type-safe APIs
 - **Bun** - Runtime environment
-- **Prisma** - TypeScript-first ORM
-- **PostgreSQL** - Database engine
-- **Authentication** - Better-Auth
-- **PWA** - Progressive Web App support
+- **Prisma + PostgreSQL** - Data model for orders, packages, sessions, serials
+- **Better-Auth** - Authentication with role-based access (admin/receiver/sales/accounting)
+- **MinIO (S3 API)** - Self-hosted package photo storage
+- **PaddleOCR sidecar** - Self-hosted label/packing-slip OCR
+- **InvenTree client** - Creates stock items + QR labels on check-in
+- **Microsoft Graph mailer** - Sends the receiving notification email
 - **Turborepo** - Optimized monorepo build system
 
 ## Getting Started
@@ -48,8 +51,7 @@ Then, run the development server:
 bun run dev
 ```
 
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
-Use the Expo Go app to run the mobile application.
+Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application (install it as a PWA on your phone for receiving).
 The API is running at [http://localhost:3000](http://localhost:3000).
 
 ## UI Customization
@@ -98,14 +100,19 @@ For more details, see the guide on [Deploying with Docker Compose](https://www.b
 ```
 receivingX/
 ├── apps/
-│   ├── web/         # Frontend application (Next.js)
-│   ├── native/      # Mobile application (React Native, Expo)
-│   └── server/      # Backend API (Hono, TRPC)
+│   ├── web/          # Frontend application (Next.js PWA)
+│   └── server/       # Backend API (Hono, TRPC)
+├── services/
+│   └── ocr/          # PaddleOCR FastAPI sidecar (Python, Docker)
 ├── packages/
-│   ├── ui/          # Shared shadcn/ui components and styles
-│   ├── api/         # API layer / business logic
-│   ├── auth/        # Authentication configuration & logic
-│   └── db/          # Database schema & queries
+│   ├── ui/           # Shared shadcn/ui components and styles
+│   ├── api/          # tRPC routers / business logic
+│   ├── auth/         # Authentication + roles
+│   ├── db/           # Prisma schema & client
+│   ├── storage/      # MinIO/S3 client, presigned uploads
+│   ├── ocr/          # OCR client + label field parser
+│   ├── inventree/    # InvenTree REST client
+│   └── mailer/       # Microsoft Graph mailer + email templates
 ```
 
 ## Available Scripts

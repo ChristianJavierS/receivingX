@@ -23,8 +23,7 @@
       "@tailwindcss/postcss": "^4.3.3",
       "@types/react-dom": "^19.2.3",
       "tailwindcss": "^4.3.3",
-      "tailwind-merge": "^3.6.0",
-      "@better-auth/expo": "1.6.25"
+      "tailwind-merge": "^3.6.0"
     }
   },
   "type": "module",
@@ -32,13 +31,14 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "check-types": "turbo run check-types",
-    "dev:native": "turbo run dev -F native",
     "dev:web": "turbo run dev -F web",
     "dev:server": "turbo run dev -F server",
     "db:push": "turbo run db:push -F @receivingX/db",
     "db:studio": "turbo run db:studio -F @receivingX/db",
     "db:generate": "turbo run db:generate -F @receivingX/db",
     "db:migrate": "turbo run db:migrate -F @receivingX/db",
+    "db:seed": "turbo run db:seed -F @receivingX/db",
+    "db:promote-admin": "turbo run db:promote-admin -F @receivingX/db --",
     "docker:build": "docker compose build",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",

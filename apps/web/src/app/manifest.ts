@@ -2,13 +2,13 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "receivingX",
-    short_name: "receivingX",
-    description: "my pwa app",
-    start_url: "/new",
+    name: "ReceivingX",
+    short_name: "ReceivingX",
+    description: "AM/PM package receiving",
+    start_url: "/",
     display: "standalone",
     background_color: "#ffffff",
-    theme_color: "#000000",
+    theme_color: "#0A2340",
     icons: [
       {
         src: "/favicon/web-app-manifest-192x192.png",
