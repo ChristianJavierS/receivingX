@@ -8,8 +8,11 @@ services:
       POSTGRES_USER: receivingx
       POSTGRES_PASSWORD: receivingx
       POSTGRES_DB: receivingx
-    ports:
-      - "5432:5432"
+    # Not published to the host by default - only `server` needs it, over the
+    # compose network (postgres:5432). Uncomment to reach it from the host
+    # (e.g. psql/Prisma Studio):
+    # ports:
+    #   - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -25,9 +28,11 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+    # The S3 API port (9000) is internal-only (minio:9000) - only `server`
+    # calls it. The console (9001) is published so an admin can browse the
+    # bucket; override MINIO_CONSOLE_PORT if 9001 is taken on the host.
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio-data:/data
     healthcheck:
@@ -54,8 +59,10 @@ services:
       context: services/ocr
     init: true
     restart: unless-stopped
-    ports:
-      - "8100:8100"
+    # Not published to the host by default - internal-only (ocr:8100), only
+    # `server` calls it. Uncomment to hit it directly for debugging:
+    # ports:
+    #   - "${OCR_PORT:-8100}:8100"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8100/health')"]
       interval: 10s
@@ -68,14 +75,19 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_SERVER_URL: http://localhost:3000
+        # Baked into the browser bundle at build time - must be the URL a
+        # browser can actually reach (not the internal `server:3000` name).
+        # Override via WEB_PUBLIC_SERVER_URL in a root .env for real deploys.
+        NEXT_PUBLIC_SERVER_URL: ${WEB_PUBLIC_SERVER_URL:-http://localhost:3000}
     init: true
     ports:
-      - "3001:3001"
+      - "${WEB_PORT:-3001}:3001"
     env_file:
       - path: apps/web/.env
         required: false
     environment:
+      # Used for the app's own SSR-side fetches, which run inside the
+      # compose network and should use the internal service name.
       NEXT_PUBLIC_SERVER_URL: http://server:3000
     depends_on:
       server:
@@ -100,12 +112,16 @@ services:
       dockerfile: apps/server/Dockerfile
     init: true
     ports:
-      - "3000:3000"
+      - "${SERVER_PORT:-3000}:3000"
     env_file:
       - path: apps/server/.env
         required: false
     environment:
-      CORS_ORIGIN: http://localhost:3001
+      # CORS_ORIGIN must be the web app's public origin (what the browser
+      # sends as Origin). Override via WEB_PUBLIC_ORIGIN in a root .env for
+      # real deploys (BETTER_AUTH_URL/APP_URL belong in apps/server/.env).
+      # DATABASE_URL/S3/OCR are always the in-network service names.
+      CORS_ORIGIN: ${WEB_PUBLIC_ORIGIN:-http://localhost:3001}
       DATABASE_URL: postgresql://receivingx:receivingx@postgres:5432/receivingx
       S3_ENDPOINT: http://minio:9000
       S3_FORCE_PATH_STYLE: "true"

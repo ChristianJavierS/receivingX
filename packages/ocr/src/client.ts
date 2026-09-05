@@ -27,7 +27,7 @@ export async function runOcr(params: {
 }): Promise<OcrResult> {
   const form = new FormData();
   const bytes = new Uint8Array(Buffer.from(params.buffer)).slice();
-  form.append("file", new Blob([bytes as BlobPart], { type: params.mimeType }), params.filename);
+  form.append("file", new Blob([bytes], { type: params.mimeType }), params.filename);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), env.OCR_TIMEOUT_MS);

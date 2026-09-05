@@ -93,6 +93,8 @@ If you want to add app-specific blocks instead of shared primitives, run the sha
 
 Environment variables are read from each app's `.env` file (baked into web builds for public variables) and overridden in `docker-compose.yml` for container networking.
 
+Postgres, MinIO's S3 API, and the OCR sidecar are internal-only by default (not published to the host) since only `server` talks to them. If a host port collides with something else already running, or you're deploying behind a reverse proxy with real hostnames, copy `.env.example` to `.env` in the repo root and override `WEB_PORT`, `SERVER_PORT`, `MINIO_CONSOLE_PORT`, `WEB_PUBLIC_SERVER_URL`, and `WEB_PUBLIC_ORIGIN`.
+
 For more details, see the guide on [Deploying with Docker Compose](https://www.better-t-stack.dev/docs/guides/docker).
 
 ## Project Structure
