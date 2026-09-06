@@ -76,10 +76,13 @@ health.ocr / health.inventree / health.mail      [admin]
 - InvenTree base URL/token, target location/category, existing Parts or auto-create.
 - Microsoft Graph app registration (tenant/client id/secret, sender mailbox UPN, admin consent).
 - A copy of the real spreadsheet for import-column mapping.
-- Sample label/packing-slip photos to tune the OCR parser.
+- **5-15 real label/packing-slip photos through the app** to measure actual
+  OCR+barcode quality now that the engine is fixed, before deciding on the
+  PaddleOCR 3.x upgrade or an LLM/VLM field-extraction pass (see PLAN.md
+  history - phases 4/5 of the OCR improvement work, deliberately gated on
+  this measurement rather than done speculatively).
 - Recipient list: USA Receiving address, accounting address(es), sales rep roster.
 - Label stock size in the warehouse.
-- Server specs (CPU/RAM) for the OCR sidecar.
 - Brand hex values / logo assets / official typeface (see DESIGN.md open items).
 
 ## 7. Status
@@ -126,6 +129,32 @@ doesn't run Prisma's postinstall (`prisma generate` must be invoked
 explicitly - see the Dockerfiles), and Turborepo's strict env mode strips
 `DATABASE_URL` from child tasks unless passed through, so that generate step
 calls `prisma` directly rather than via `turbo`/`bun run db:generate`.
+
+**OCR was completely broken, not just weak** (found while investigating a
+"weak OCR" report): `services/ocr/Dockerfile` never installed `libgomp1`, so
+`import paddleocr` threw on every request and every photo silently landed in
+`NEEDS_REVIEW` with zero extracted fields. The `/health` endpoint didn't
+actually exercise the engine, so this went unnoticed. Fixed, plus:
+- `/health` now runs a real probe image through PaddleOCR and reports
+  `{status, engine, error}` instead of just "is uvicorn up" - surfaced in
+  `/admin/health`.
+- **Barcode decoding** (`zxing-cpp`, Apache 2.0) runs alongside OCR and is
+  treated as the highest-confidence signal (`packages/ocr/src/parser.ts
+  classifyBarcodes`) - a Code128/DataMatrix serial is character-exact, where
+  OCR can misread 0/O, 1/I, 5/S, 8/B on a hand-photographed label. Barcode
+  matches win over OCR guesses for the same field.
+- Capture flow (`/receive/[packageId]`) now EXIF-auto-orients, downscales to
+  ~2000px, and re-encodes as JPEG client-side before upload (previously
+  uploaded the raw camera file with no orientation correction, and never
+  even recorded width/height).
+- `services/ocr/main.py` also EXIF-transposes and caps dimensions
+  server-side as a safety net for non-browser clients.
+
+The PaddleOCR 2.9.1 -> 3.x/PP-OCRv5 engine upgrade was deliberately **not**
+done in this pass (breaking API change, gate behind measuring real labels
+first - see "Open items"). GPU acceleration was also deliberately skipped:
+the server has an NVIDIA P102-100 (10GB, Pascal) physically present but no
+driver loaded; everything above runs CPU-only on the server's 32 cores.
 
 To create the first admin: sign up a normal account at
 `http://192.168.1.224:3001/login`, then from the server run

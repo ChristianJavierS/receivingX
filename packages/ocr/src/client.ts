@@ -6,9 +6,16 @@ export type OcrBlock = {
   box: [number, number][];
 };
 
+export type OcrBarcode = {
+  text: string;
+  format: string;
+  position: [number, number][];
+};
+
 export type OcrResult = {
   rawText: string;
   blocks: OcrBlock[];
+  barcodes: OcrBarcode[];
   width: number;
   height: number;
 };
@@ -53,11 +60,20 @@ export async function runOcr(params: {
   }
 }
 
-export async function ocrHealthCheck(): Promise<boolean> {
+export type OcrHealth = { ok: boolean; error?: string };
+
+/**
+ * Checks the sidecar's /health, which actually runs a probe image through
+ * the OCR engine (not just "is uvicorn up") - a missing native dependency
+ * previously made this report healthy forever while every real call 500'd.
+ */
+export async function ocrHealthCheck(): Promise<OcrHealth> {
   try {
-    const res = await fetch(`${env.OCR_URL}/health`, { signal: AbortSignal.timeout(3000) });
-    return res.ok;
-  } catch {
-    return false;
+    const res = await fetch(`${env.OCR_URL}/health`, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    const data = (await res.json()) as { status?: string; error?: string };
+    return { ok: data.status === "ok", error: data.error };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
   }
 }

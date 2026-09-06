@@ -13,6 +13,41 @@ import { toast } from "sonner";
 import { RequireAuth } from "@/components/require-auth";
 import { trpc } from "@/utils/trpc";
 
+const MAX_UPLOAD_DIMENSION = 2000;
+const JPEG_QUALITY = 0.85;
+
+type PreparedPhoto = { blob: Blob; mimeType: string; width: number; height: number };
+
+/**
+ * Auto-orients (phone cameras write EXIF rotation instead of rotating
+ * pixels, which OCR ignores and gets badly confused by), downscales, and
+ * re-encodes as JPEG before upload. Falls back to the original file
+ * untouched if the browser can't do any of this, so capture never breaks.
+ */
+async function preprocessPhoto(file: File): Promise<PreparedPhoto> {
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const scale = Math.min(1, MAX_UPLOAD_DIMENSION / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas not available");
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY));
+    if (!blob) throw new Error("toBlob failed");
+
+    return { blob, mimeType: "image/jpeg", width, height };
+  } catch {
+    return { blob: file, mimeType: file.type, width: 0, height: 0 };
+  }
+}
+
 function ReviewContent() {
   const params = useParams<{ packageId: string }>();
   const router = useRouter();
@@ -104,17 +139,20 @@ function ReviewContent() {
   async function handleFile(file: File) {
     setUploading(true);
     try {
+      const prepared = await preprocessPhoto(file);
       const { photoId, key, uploadUrl } = await uploadUrlMutation.mutateAsync({
         packageId,
-        mimeType: file.type,
+        mimeType: prepared.mimeType,
         kind: "LABEL",
       });
-      await fetch(uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      await fetch(uploadUrl, { method: "PUT", body: prepared.blob, headers: { "Content-Type": prepared.mimeType } });
       await confirmPhotoMutation.mutateAsync({
         packageId,
         objectKey: key,
-        mimeType: file.type,
-        bytes: file.size,
+        mimeType: prepared.mimeType,
+        bytes: prepared.blob.size,
+        width: prepared.width || undefined,
+        height: prepared.height || undefined,
         kind: "LABEL",
       });
       void photoId;
@@ -145,7 +183,10 @@ function ReviewContent() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-data font-display text-lg font-semibold">{pkg.publicId}</h1>
-          <p className="text-xs text-muted-foreground">Photograph the label, confirm the fields, then check in.</p>
+          <p className="text-xs text-muted-foreground">
+            Photograph the label, confirm the fields, then check in. Include any barcode in the shot - it reads more
+            reliably than the printed text.
+          </p>
         </div>
         <StatusBadge status={pkg.status} />
       </div>

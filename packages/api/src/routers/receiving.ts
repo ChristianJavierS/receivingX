@@ -1,5 +1,5 @@
 import { checkInToInventree } from "@receivingX/inventree";
-import { extractFieldsFromText, runOcr } from "@receivingX/ocr";
+import { classifyBarcodes, extractFieldsFromText, type FieldCandidate, runOcr } from "@receivingX/ocr";
 import { createDownloadUrl, createUploadUrl, getObjectBuffer, packagePhotoKey } from "@receivingX/storage";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -360,11 +360,25 @@ async function runOcrForPhoto(db: typeof import("@receivingX/db").default, photo
     });
     const vendors = await db.vendor.findMany({ select: { name: true } });
 
-    const candidates = extractFieldsFromText(result.rawText, {
+    const barcodeCandidates = classifyBarcodes(
+      result.barcodes.map((b) => b.text),
+      { openPoNumbers: openLines.map((l) => l.poNumber), openPartNumbers: openLines.map((l) => l.partNumber) },
+    );
+    const textCandidates = extractFieldsFromText(result.rawText, {
       openPoNumbers: openLines.map((l) => l.poNumber),
       openPartNumbers: openLines.map((l) => l.partNumber),
       vendorNames: vendors.map((v) => v.name),
     });
+
+    // Barcode reads are character-exact; when both a barcode and OCR guess
+    // land on the same (key, value) keep just the barcode's confidence.
+    const merged = new Map<string, FieldCandidate>();
+    for (const c of [...textCandidates, ...barcodeCandidates]) {
+      const dedupeKey = `${c.key}:${c.value.toUpperCase()}`;
+      const existing = merged.get(dedupeKey);
+      if (!existing || c.confidence > existing.confidence) merged.set(dedupeKey, c);
+    }
+    const candidates = Array.from(merged.values()).sort((a, b) => b.confidence - a.confidence);
 
     await db.packagePhoto.update({
       where: { id: photoId },

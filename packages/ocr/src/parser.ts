@@ -59,6 +59,49 @@ const RE_VENDOR = /\b(?:VENDOR|SOLD\s*BY|SUPPLIER|MANUFACTURER)\s*[:#]\s*([A-Za-
 const RE_DESCRIPTION = /\b(?:DESC(?:RIPTION)?|ITEM)\s*[:#]\s*([A-Za-z0-9][^\n]{2,80})/gi;
 
 /**
+ * Classifies decoded barcode payloads into field candidates. Barcodes are
+ * the single highest-confidence signal available: a Code128/DataMatrix
+ * serial is character-exact, where OCR on a hand-photographed label can and
+ * will occasionally misread 0/O, 1/I, 5/S, 8/B. A barcode match always wins
+ * over an OCR guess for the same field.
+ */
+export function classifyBarcodes(
+  barcodeTexts: string[],
+  context?: { openPoNumbers?: string[]; openPartNumbers?: string[] },
+): FieldCandidate[] {
+  const openPos = new Set(context?.openPoNumbers ?? []);
+  const openPns = new Set((context?.openPartNumbers ?? []).map((p) => p.toUpperCase()));
+  const out: FieldCandidate[] = [];
+
+  for (const raw of unique(barcodeTexts)) {
+    const value = raw.trim();
+    if (!value) continue;
+
+    if (openPos.has(value)) {
+      out.push({ key: "PO", value, confidence: 0.99 });
+      continue;
+    }
+    if (openPns.has(value.toUpperCase())) {
+      out.push({ key: "PN", value, confidence: 0.99 });
+      continue;
+    }
+    if (/^\d{12}$|^\d{15}$|^\d{20}$/.test(value)) {
+      out.push({ key: "TRACKING", value, confidence: 0.97 });
+      continue;
+    }
+    if (/^[A-Z0-9][A-Z0-9-]{4,24}$/i.test(value)) {
+      // Most commonly a serial number - vendors also barcode PN/lot codes,
+      // but SN is the field this saves the most transcription error on.
+      out.push({ key: "SN", value, confidence: 0.9 });
+      continue;
+    }
+    // Anything else (URLs, carrier-internal codes) isn't useful as a field.
+  }
+
+  return out;
+}
+
+/**
  * Extract every candidate field from raw OCR text. `poCandidates` (open
  * SalesOrderLine.poNumber values from the DB) lets us bias confidence toward
  * numbers that are actually open, since bare digit runs are ambiguous.
