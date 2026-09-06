@@ -1,4 +1,4 @@
-"""PaddleOCR + barcode sidecar for ReceivingX.
+"""RapidOCR + barcode sidecar for ReceivingX.
 
 Exposes a single OCR endpoint used by packages/ocr (the Node/TS client). This
 service is intentionally dumb: it turns an image into text + bounding boxes +
@@ -9,6 +9,13 @@ layer so it can be iterated on without rebuilding this container.
 Barcodes are decoded first and are the highest-confidence signal available:
 a Code128/DataMatrix serial number is character-exact, where OCR can and will
 occasionally misread 0/O, 1/I, 5/S, 8/B in a hand-photographed label.
+
+Uses RapidOCR (ONNX Runtime) rather than PaddleOCR/PaddlePaddle: PaddlePaddle's
+PyPI wheel is compiled requiring AVX2 and raises SIGILL - an uncatchable
+hardware trap that kills the whole process, not a Python exception - on
+pre-Haswell CPUs (e.g. Xeon E5-2600 v1/v2, which only have AVX). ONNX Runtime
+does runtime CPU-feature detection and runs correctly on that hardware.
+RapidOCR ships the same underlying PP-OCR models, so accuracy is equivalent.
 """
 
 from __future__ import annotations
@@ -25,27 +32,26 @@ from PIL import Image, ImageOps
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ocr")
 
-app = FastAPI(title="ReceivingX OCR", version="1.1.0")
+app = FastAPI(title="ReceivingX OCR", version="1.2.0")
 
 _ocr_engine: Any = None
 _engine_error: str | None = None
 
 # Safety net for non-browser clients (the web app already downsizes before
-# upload - see apps/web's capture flow). PaddleOCR does its own internal
-# normalization, so we deliberately do the minimum here: cap runaway
-# resolutions and guarantee RGB.
+# upload - see apps/web's capture flow). Deliberately minimal: cap runaway
+# resolutions and guarantee RGB; the engine does its own normalization.
 MAX_DIMENSION = 2600
 
 
 def get_engine() -> Any:
-    """Lazily create the PaddleOCR engine (loads model weights on first use)."""
+    """Lazily create the RapidOCR engine (loads model weights on first use)."""
     global _ocr_engine
     if _ocr_engine is None:
-        logger.info("Loading PaddleOCR engine...")
-        from paddleocr import PaddleOCR
+        logger.info("Loading RapidOCR engine...")
+        from rapidocr_onnxruntime import RapidOCR
 
-        _ocr_engine = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
-        logger.info("PaddleOCR engine ready")
+        _ocr_engine = RapidOCR()
+        logger.info("RapidOCR engine ready")
     return _ocr_engine
 
 
@@ -86,16 +92,36 @@ def decode_barcodes(image: Image.Image) -> list[dict]:
     return barcodes
 
 
+def run_ocr(image: Image.Image) -> list[dict]:
+    """RGB PIL Image -> BGR ndarray (these toolkits are built/tested against
+    cv2's BGR convention) -> [[box, text, score], ...] or None."""
+    engine = get_engine()
+    bgr = np.array(image)[:, :, ::-1]
+    result, _elapsed = engine(bgr)
+
+    blocks: list[dict] = []
+    for entry in result or []:
+        box, text, score = entry
+        blocks.append(
+            {
+                "text": text,
+                "confidence": float(score),
+                "box": [[float(x), float(y)] for x, y in box],
+            }
+        )
+    return blocks
+
+
 @app.get("/health")
 def health() -> dict:
     """Actually exercises the OCR engine, not just "is uvicorn up". A crash
-    on import (e.g. a missing shared library) previously reported healthy
-    forever while every real /ocr call 500'd."""
+    on import (e.g. a missing shared library, or - as previously happened
+    with PaddlePaddle on this CPU - an illegal instruction) otherwise reports
+    healthy forever while every real /ocr call fails."""
     global _engine_error
     try:
-        engine = get_engine()
         probe = Image.new("RGB", (64, 64), color="white")
-        engine.ocr(np.array(probe), cls=True)
+        run_ocr(probe)
         _engine_error = None
         return {"status": "ok", "engine": "ok"}
     except Exception as exc:  # noqa: BLE001
@@ -116,23 +142,8 @@ async def ocr(file: UploadFile = File(...)) -> dict:
         raise HTTPException(status_code=400, detail=f"Could not decode image: {exc}") from exc
 
     barcodes = decode_barcodes(image)
-
-    engine = get_engine()
-    result = engine.ocr(np.array(image), cls=True)
-
-    blocks: list[dict] = []
-    lines: list[str] = []
-    for page in result or []:
-        for entry in page or []:
-            box, (text, confidence) = entry
-            blocks.append(
-                {
-                    "text": text,
-                    "confidence": float(confidence),
-                    "box": [[float(x), float(y)] for x, y in box],
-                }
-            )
-            lines.append(text)
+    blocks = run_ocr(image)
+    lines = [b["text"] for b in blocks]
 
     return {
         "rawText": "\n".join(lines),

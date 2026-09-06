@@ -66,11 +66,15 @@ services:
     # ports:
     #   - "${OCR_PORT:-8100}:8100"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8100/health')"]
-      interval: 10s
-      timeout: 5s
+      # /health runs a real probe image through the engine (loads model
+      # weights on first call), which is slower than a plain liveness check -
+      # generous timeout/start_period so a cold start doesn't get marked
+      # unhealthy and block `server`'s `depends_on: condition: service_healthy`.
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8100/health', timeout=30)"]
+      interval: 15s
+      timeout: 35s
       retries: 5
-      start_period: 20s
+      start_period: 60s
 
   web:
     build:

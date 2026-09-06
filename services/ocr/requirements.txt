@@ -3,6 +3,11 @@ uvicorn[standard]==0.34.0
 python-multipart==0.0.20
 pillow==11.1.0
 numpy<2.0
-paddlepaddle==3.0.0
-paddleocr==2.9.1
+# RapidOCR ships the same PP-OCR models as PaddleOCR but runs them via
+# ONNX Runtime instead of the PaddlePaddle framework. PaddlePaddle's PyPI
+# wheel is compiled requiring AVX2 and SIGILLs on pre-Haswell CPUs (e.g.
+# Xeon E5-2600 v1/v2, AVX-only); ONNX Runtime does runtime CPU-feature
+# detection and safely falls back on older hardware. Same OCR quality,
+# compatible engine.
+rapidocr-onnxruntime==1.4.4
 zxing-cpp==2.3.0
