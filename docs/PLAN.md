@@ -156,6 +156,32 @@ first - see "Open items"). GPU acceleration was also deliberately skipped:
 the server has an NVIDIA P102-100 (10GB, Pascal) physically present but no
 driver loaded; everything above runs CPU-only on the server's 32 cores.
 
+**Second bug found mid-deploy**: the production server's CPU is a **Xeon
+E5-2680 (Sandy Bridge - AVX only, no AVX2)**. PaddlePaddle's official PyPI
+wheel is compiled requiring AVX2, so `.ocr()` didn't error - it raised
+**SIGILL**, an uncatchable hardware trap that killed the whole Python process
+(not something `try/except` can see), causing an infinite restart loop.
+Replaced PaddleOCR/PaddlePaddle with **RapidOCR** (`rapidocr-onnxruntime`,
+Apache 2.0), which runs the *same underlying PP-OCR models* through ONNX
+Runtime instead - ONNX Runtime does runtime CPU-feature detection and works
+correctly on this hardware. Verified end-to-end against a real packing slip
+pulled from MinIO: OCR now returns full, accurate text (confidences mostly
+0.85-0.99, e.g. correctly read the part number and product description) via
+the real upload -> confirmPhoto -> OCR pipeline, not just the sidecar in
+isolation.
+
+**What that real test also proved**: zero fields were auto-extracted from
+that packing slip despite the text being good, because it's a **tabular
+commercial invoice** - OCR reads column headers ("PURCHASE ORDERU") and
+their values (several lines below) as disjoint lines once flattened to
+plain text, and the regex parser (`packages/ocr/src/parser.ts`) requires a
+label and value to be adjacent. This is the concrete, evidence-based case
+for Phase 4 (feeding OCR text to a local LLM - gemma2:9b is already running
+on this server's Ollama - for structured extraction instead of regex),
+which was intentionally deferred pending real measurement. Barcode decoding
+(Phase 2) didn't apply to this specific document since it's a text-only
+commercial invoice with no barcode, not a FedEx shipping label.
+
 To create the first admin: sign up a normal account at
 `http://192.168.1.224:3001/login`, then from the server run
 `docker compose exec server sh -c "cd /app/packages/db && bun run prisma/promote-admin.ts you@example.com"`
